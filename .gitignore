@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+*.jsonl
+test_output/
+draft_output/
+live_sheet*.xlsx
+copied_live_sheet*.xlsx
+credentials*.json
+token*.json
+client_secret*.json
+*.pem
+*.key
+*.p12
