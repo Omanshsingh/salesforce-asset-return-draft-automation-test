@@ -1,0 +1,19 @@
+SALESFORCE EMAIL DRAFT AUTOMATION
+
+Daily use:
+
+1. Copy the latest Salesforce Excel sheet into the Input folder.
+2. Double-click “Prepare Drafts.bat”.
+3. Wait until it says Finished.
+4. Open the Output\eml folder.
+5. Test one .eml file first.
+
+The automation creates unsent email files only. It does not send anything.
+
+Important:
+- Keep the Excel column names unchanged.
+- Use only the .eml files in Output\eml.
+- Do not drag all 100 files into Outlook at once; Outlook may freeze.
+- The current safe test creates the email files. The next production step is to create Outlook drafts one at a time through Outlook.
+
+For the first test, the Input folder already contains a dummy workbook. After testing, remove it before adding real data.
