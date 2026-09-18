@@ -6,6 +6,8 @@ Requires Windows, Python 3.11+, and a working Classic Outlook profile for direct
 
 Choose Excel and the specific Outlook mailbox in the window. Test two dummy drafts before a full batch. Messages save sequentially to the selected account's Drafts folder without opening windows or sending mail. The signature banner is embedded.
 
+If a save cannot be confirmed, the app stops and marks the case pending. Check Outlook Drafts before retrying. The Reset interrupted cases button removes only pending records after you confirm you checked; saved history remains.
+
 The first worksheet must use the supplied column headers. Rows group by Case ID; different Case IDs remain separate. Conflicting identity/address fields, missing required information and duplicate flags are held for review. Duplicate flags are not blindly discarded: they may mark repeated cases containing different assets. Identical asset descriptions are deduplicated.
 
 Data/draft-history.sqlite records each mailbox and Case ID before saving. Repeated cases are skipped. Changed cases or interrupted saves require review instead of automatic retries. Keep Data across upgrades and move it with the installation. Separate installations do not share protection. Previously sent manual emails are not detected: select only eligible new cases in the daily export. Follow-ups are outside this initial-email workflow.

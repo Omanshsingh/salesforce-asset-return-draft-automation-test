@@ -35,6 +35,11 @@ class History:
         self.db.execute('UPDATE drafts SET status=?, entry_id=? WHERE mailbox=? AND case_id=?', ('saved',entry,mailbox,case['case_id']))
         self.db.commit()
 
+    def reset_pending(self):
+        count = self.db.execute("DELETE FROM drafts WHERE status='pending'").rowcount
+        self.db.commit()
+        return count
+
     def close(self):
         self.db.close()
 
@@ -50,7 +55,9 @@ class OutlookWriter:
         self.mailbox = smtp.lower() + '|' + str(self.folder.StoreID)
 
     def save(self, case, body, attachments):
-        message = self.folder.Items.Add('IPM.Note')
+        # CreateItem is more reliable than Drafts.Items.Add on older Outlook
+        # builds. SendUsingAccount selects the mailbox; Save keeps it unsent.
+        message = self.app.CreateItem(0)
         try:
             message.SendUsingAccount = self.account
             message.BodyFormat = 2
@@ -61,13 +68,12 @@ class OutlookWriter:
                 attachment = message.Attachments.Add(str(Path(path).resolve()), 1, 0)
                 props = attachment.PropertyAccessor
                 props.SetProperty('http://schemas.microsoft.com/mapi/proptag/0x3712001F', cid)
-                props.SetProperty('http://schemas.microsoft.com/mapi/proptag/0x370E001F', 'image/png')
-                props.SetProperty('http://schemas.microsoft.com/mapi/proptag/0x7FFE000B', True)
                 attachment = props = None
             message.HTMLBody = body
             message.Save()
             entry = str(message.EntryID)
-            message.Close(0)
+            if not entry:
+                raise RuntimeError('Outlook returned no draft ID after Save.')
             return entry
         finally:
             message = None
@@ -91,10 +97,11 @@ def run_cases(cases, writer, history, banner, report, progress, cancelled, limit
                     try:
                         entry = writer.save(case, body, attachments)
                         history.complete(writer.mailbox, case, entry)
-                    except Exception:
+                    except Exception as exc:
                         log.write(case['case_id'] + ': Save could not be confirmed. Check Outlook. Batch stopped.\n')
+                        log.write('Technical detail: ' + repr(exc) + '\n')
                         log.flush()
-                        raise RuntimeError('Outlook save could not be confirmed. Processing stopped. Check Outlook and the results report; this case will not be retried automatically.') from None
+                        raise RuntimeError('Outlook save could not be confirmed. Processing stopped. Check Outlook and Results.txt for the technical detail. This case will not be retried automatically.') from exc
                     created += 1
                     status = 'Draft created'
                     time.sleep(delay)

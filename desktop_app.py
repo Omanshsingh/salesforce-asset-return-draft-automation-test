@@ -33,6 +33,7 @@ class App:
         row3 = ttk.Frame(box); row3.pack(fill='x')
         self.button(row3, 'Save EML test files', lambda: self.start('eml'), side='left')
         ttk.Button(row3, text='Stop after current case', command=self.stop.set).pack(side='left', padx=6)
+        ttk.Button(row3, text='Reset interrupted cases', command=self.reset_pending).pack(side='left')
         ttk.Button(row3, text='Open results folder', command=self.open_results).pack(side='left')
         self.status = ttk.Label(box, text='Ready. Nothing is sent automatically.', wraplength=630)
         self.status.pack(anchor='w', pady=18)
@@ -126,6 +127,14 @@ class App:
 
     def open_results(self):
         self.report_dir.mkdir(parents=True,exist_ok=True); os.startfile(str(self.report_dir))
+
+    def reset_pending(self):
+        if self.busy: return
+        if not messagebox.askyesno('Check Outlook first', 'Use this only after checking Drafts for a draft from the interrupted run. Reset interrupted cases so they can be tried again?'):
+            return
+        history = History(BASE / 'Data' / 'draft-history.sqlite')
+        count = history.reset_pending(); history.close()
+        self.status.config(text=f'{count} interrupted case(s) reset. Check the Results file before retrying.')
 
     def close(self):
         if self.busy:

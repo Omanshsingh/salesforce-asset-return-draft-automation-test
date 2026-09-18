@@ -19,6 +19,7 @@ DAILY USE
 
 Drafts are saved one at a time without opening message windows.
 Nothing is sent automatically. Stop finishes the current case then stops.
+If a save is interrupted, check Outlook Drafts first. Then use Reset interrupted cases before retrying.
 Rows with the same Case ID combine their assets into one email.
 Already processed cases are skipped. Changed or conflicting cases need review.
 Keep the Data folder: it prevents repeated drafts across days.
