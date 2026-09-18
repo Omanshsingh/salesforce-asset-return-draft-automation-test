@@ -11,7 +11,7 @@ python -m pip install -r requirements.txt
 python desktop_draft_automation.py "C:\path\to\dummy\Omansh_Test_Dummy_100_Cases.xlsx" --output test_output
 ```
 
-The default is a dry run. It creates HTML previews, `manifest.json`, and `review.csv`. It cannot send an email.
+The default is a dry run. It creates `manifest.json` and `review.csv`. It cannot send an email. Add `--create-html-preview` only if browser-viewable HTML copies are needed.
 
 ## Create reviewable EML files
 

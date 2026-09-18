@@ -207,6 +207,7 @@ def main() -> None:
     parser.add_argument("--banner", type=Path, help="Optional EcoReco banner image to embed in drafts")
     parser.add_argument("--create-outlook-drafts", action="store_true", help="Save drafts in the logged-in classic Outlook profile")
     parser.add_argument("--create-eml", action="store_true", help="Write unsent .eml files for manual review")
+    parser.add_argument("--create-html-preview", action="store_true", help="Also write browser-viewable HTML previews")
     args = parser.parse_args()
 
     if args.banner is None:
@@ -222,12 +223,14 @@ def main() -> None:
             manifest.append({**case, "draft_id": "", "preview": "", "action": "Review required"})
             continue
         body, attachments = build_html(case, args.banner)
-        preview = args.output / f"{case['case_id']}.html"
-        preview.write_text(body, encoding="utf-8")
+        preview = None
+        if args.create_html_preview:
+            preview = args.output / f"{case['case_id']}.html"
+            preview.write_text(body, encoding="utf-8")
         draft_id = create_outlook_draft(case, body, attachments) if args.create_outlook_drafts else ""
         eml_path = create_eml(case, body, args.output / "eml", attachments) if args.create_eml else None
         action = "Outlook draft created" if draft_id else ("EML created" if eml_path else "Preview only")
-        manifest.append({**case, "draft_id": draft_id, "eml": str(eml_path) if eml_path else "", "preview": str(preview), "action": action})
+        manifest.append({**case, "draft_id": draft_id, "eml": str(eml_path) if eml_path else "", "preview": str(preview) if preview else "", "action": action})
 
     (args.output / "manifest.json").write_text(json.dumps({"source": str(args.input), "cases": manifest, "skipped_rows": skipped}, indent=2, default=str), encoding="utf-8")
     with (args.output / "review.csv").open("w", newline="", encoding="utf-8") as handle:
