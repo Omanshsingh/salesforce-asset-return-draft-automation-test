@@ -18,6 +18,9 @@ import re
 from collections import OrderedDict
 from datetime import datetime
 from email.message import EmailMessage
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from email.utils import formatdate
 from pathlib import Path
 from typing import Any
@@ -171,17 +174,26 @@ def create_outlook_draft(case: dict[str, Any], body: str, attachments: dict[str,
 
 def create_eml(case: dict[str, Any], body: str, output: Path, attachments: dict[str, str]) -> Path:
     """Write an unsent RFC 822 email file that can be opened for review."""
-    message = EmailMessage()
+    # Outlook 2013 expects the HTML alternative and inline images to be siblings
+    # inside a top-level multipart/related message. EmailMessage's default
+    # nesting can leave the CID image one level too deep, showing broken-image
+    # alt text when an EML is imported into Outlook.
+    message = MIMEMultipart("related")
     message["To"] = "; ".join(recipients(case["email"]))
     message["Subject"] = case["subject"]
     message["Date"] = formatdate(localtime=True)
-    message.set_content("Please open this message in an HTML-capable mail application.")
-    message.add_alternative(body, subtype="html")
+    alternative = MIMEMultipart("alternative")
+    alternative.attach(MIMEText("Please open this message in an HTML-capable mail application.", "plain", "utf-8"))
+    alternative.attach(MIMEText(body, "html", "utf-8"))
+    message.attach(alternative)
     for cid, file_path in attachments.items():
         data = Path(file_path).read_bytes()
         suffix = Path(file_path).suffix.lower()
-        maintype, subtype = ("image", "png") if suffix == ".png" else ("image", "jpeg")
-        message.get_payload()[-1].add_related(data, maintype=maintype, subtype=subtype, cid=f"<{cid}>", filename=Path(file_path).name)
+        subtype = "png" if suffix == ".png" else "jpeg"
+        image = MIMEImage(data, _subtype=subtype)
+        image.add_header("Content-ID", f"<{cid}>")
+        image.add_header("Content-Disposition", "inline", filename=Path(file_path).name)
+        message.attach(image)
     output.mkdir(parents=True, exist_ok=True)
     target = output / f"{case['case_id']}.eml"
     target.write_bytes(message.as_bytes())
