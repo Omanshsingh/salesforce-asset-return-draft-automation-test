@@ -17,6 +17,8 @@ import json
 import re
 from collections import OrderedDict
 from datetime import datetime
+from email.message import EmailMessage
+from email.utils import formatdate
 from pathlib import Path
 from typing import Any
 
@@ -162,12 +164,32 @@ def create_outlook_draft(case: dict[str, Any], body: str, attachments: dict[str,
     return str(message.EntryID)
 
 
+def create_eml(case: dict[str, Any], body: str, output: Path, attachments: dict[str, str]) -> Path:
+    """Write an unsent RFC 822 email file that can be opened for review."""
+    message = EmailMessage()
+    message["To"] = "; ".join(recipients(case["email"]))
+    message["Subject"] = case["subject"]
+    message["Date"] = formatdate(localtime=True)
+    message.set_content("Please open this message in an HTML-capable mail application.")
+    message.add_alternative(body, subtype="html")
+    for cid, file_path in attachments.items():
+        data = Path(file_path).read_bytes()
+        suffix = Path(file_path).suffix.lower()
+        maintype, subtype = ("image", "png") if suffix == ".png" else ("image", "jpeg")
+        message.get_payload()[-1].add_related(data, maintype=maintype, subtype=subtype, cid=f"<{cid}>", filename=Path(file_path).name)
+    output.mkdir(parents=True, exist_ok=True)
+    target = output / f"{case['case_id']}.eml"
+    target.write_bytes(message.as_bytes())
+    return target
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create Salesforce asset-return Outlook drafts from Excel.")
     parser.add_argument("input", type=Path, help="Copied Salesforce workbook (.xlsx)")
     parser.add_argument("--output", type=Path, default=Path("draft_output"), help="Output folder for previews and manifest")
     parser.add_argument("--banner", type=Path, help="Optional EcoReco banner image to embed in drafts")
     parser.add_argument("--create-outlook-drafts", action="store_true", help="Save drafts in the logged-in classic Outlook profile")
+    parser.add_argument("--create-eml", action="store_true", help="Write unsent .eml files for manual review")
     args = parser.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -181,7 +203,9 @@ def main() -> None:
         preview = args.output / f"{case['case_id']}.html"
         preview.write_text(body, encoding="utf-8")
         draft_id = create_outlook_draft(case, body, attachments) if args.create_outlook_drafts else ""
-        manifest.append({**case, "draft_id": draft_id, "preview": str(preview), "action": "Draft created" if draft_id else "Preview only"})
+        eml_path = create_eml(case, body, args.output / "eml", attachments) if args.create_eml else None
+        action = "Outlook draft created" if draft_id else ("EML created" if eml_path else "Preview only")
+        manifest.append({**case, "draft_id": draft_id, "eml": str(eml_path) if eml_path else "", "preview": str(preview), "action": action})
 
     (args.output / "manifest.json").write_text(json.dumps({"source": str(args.input), "cases": manifest, "skipped_rows": skipped}, indent=2, default=str), encoding="utf-8")
     with (args.output / "review.csv").open("w", newline="", encoding="utf-8") as handle:
@@ -194,7 +218,7 @@ def main() -> None:
     print(f"Cases found: {len(manifest)} | ready: {ready} | needs review: {review} | skipped rows: {len(skipped)}")
     print(f"Output: {args.output.resolve()}")
     if not args.create_outlook_drafts:
-        print("Dry run only: no Outlook drafts were created.")
+        print("No Outlook drafts were created.")
 
 
 if __name__ == "__main__":

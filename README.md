@@ -13,6 +13,16 @@ python desktop_draft_automation.py "C:\path\to\dummy\Omansh_Test_Dummy_100_Cases
 
 The default is a dry run. It creates HTML previews, `manifest.json`, and `review.csv`. It cannot send an email.
 
+## Create reviewable EML files
+
+To create unsent email files without Outlook or Gmail, run:
+
+```powershell
+python desktop_draft_automation.py "C:\path\to\dummy\Omansh_Test_Dummy_100_Cases.xlsx" --output eml_test --create-eml
+```
+
+Open the files in `eml_test\eml`. They are unsent messages for review. This is the recommended first test on a computer without Outlook.
+
 ## Create Outlook drafts
 
 After reviewing the dry run, open classic Outlook, then run:
