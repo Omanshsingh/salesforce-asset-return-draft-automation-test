@@ -17,7 +17,9 @@ if errorlevel 1 goto old_python
 
 if exist ".venv\Scripts\python.exe" goto packages
 
-%PYTHON_CMD% -m venv .venv
+if exist ".venv" rmdir /s /q ".venv" >nul 2>nul
+del /q "setup-error.txt" >nul 2>nul
+%PYTHON_CMD% -m venv .venv >"setup-error.txt" 2>&1
 if errorlevel 1 goto venv_failed
 
 :packages
@@ -41,6 +43,9 @@ exit /b 1
 
 :venv_failed
 echo Python is installed, but the local environment could not be created.
+echo The exact Windows message is below:
+type "setup-error.txt"
+echo The same message was saved in setup-error.txt in this folder.
 echo Check that this folder is writable and that antivirus did not block Python.
 pause
 exit /b 1
