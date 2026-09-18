@@ -55,15 +55,19 @@ class OutlookWriter:
         self.mailbox = smtp.lower() + '|' + str(self.folder.StoreID)
 
     def save(self, case, body, attachments):
-        # CreateItem is more reliable than Drafts.Items.Add on older Outlook
-        # builds. SendUsingAccount selects the mailbox; Save keeps it unsent.
-        message = self.app.CreateItem(0)
+        # Create the item in the selected mailbox's Drafts folder. This avoids
+        # Outlook 2013 saving a generic item against the wrong store.
+        message = self.folder.Items.Add(0)
         try:
-            message.SendUsingAccount = self.account
+            # The folder already selects the mailbox. Some older/IMAP Outlook
+            # profiles reject SendUsingAccount even though the draft is valid.
+            try:
+                message.SendUsingAccount = self.account
+            except Exception:
+                pass
             message.BodyFormat = 2
             message.To = case['email']
             message.Subject = case['subject']
-            message.UserProperties.Add('AssetReturnCase', 1).Value = case['case_id']
             for cid, path in attachments.items():
                 attachment = message.Attachments.Add(str(Path(path).resolve()), 1, 0)
                 props = attachment.PropertyAccessor

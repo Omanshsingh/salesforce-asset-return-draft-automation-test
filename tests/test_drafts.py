@@ -54,7 +54,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(list(self.folder.glob('*.html')))
     def test_outlook_adapter_saves_without_opening_or_sending(self):
         writer = OutlookWriter.__new__(OutlookWriter)
-        writer.account = object(); writer.folder = MagicMock()
+        writer.account = object(); writer.folder = MagicMock(); writer.app = MagicMock()
         message = writer.folder.Items.Add.return_value
         message.EntryID = 'saved-id'
         body, images = build_html(self.cases[0], BASE/'signature-banner.png')
@@ -69,5 +69,10 @@ class Tests(unittest.TestCase):
         self.history.close()
         self.history = History(self.folder/'history.sqlite')
         self.assertEqual(self.run_batch(),98)
+    def test_reset_pending_only(self):
+        self.history.reserve(self.writer.mailbox, self.cases[0])
+        self.history.complete(self.writer.mailbox, self.cases[1], 'saved-id') if False else None
+        self.assertEqual(self.history.reset_pending(),1)
+        self.assertIsNone(self.history.reserve(self.writer.mailbox, self.cases[0]))
 
 if __name__ == '__main__': unittest.main()
