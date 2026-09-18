@@ -1,4 +1,10 @@
 __pycache__/
+Input/
+Output/
+Data/
+*.eml
+*.sqlite*
+*.log
 *.py[cod]
 .venv/
 venv/

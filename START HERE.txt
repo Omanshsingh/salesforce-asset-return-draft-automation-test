@@ -1,19 +1,28 @@
-SALESFORCE EMAIL DRAFT AUTOMATION
+FIRST TIME
+1. Install Python 3.11 or newer if needed.
+2. Double-click Setup Once.bat and wait for Setup complete.
+3. Open Classic Outlook with the correct account.
 
-Daily use:
+FIRST TEST
+1. Double-click Prepare Drafts.bat.
+2. Choose Omansh_Test_Dummy_100_Cases.xlsx.
+3. Load Outlook accounts and select the test mailbox.
+4. Click Test 2 dummy drafts.
+5. Check those drafts in Outlook, including banner and multiple assets.
 
-1. Copy the latest Salesforce Excel sheet into the Input folder.
-2. Double-click “Prepare Drafts.bat”.
-3. Wait until it says Finished.
-4. Open the Output\eml folder.
-5. Test one .eml file first.
+DAILY USE
+1. Save today's copied Excel workbook.
+2. Double-click Prepare Drafts.bat and choose that Excel file.
+3. Load Outlook accounts and select the work mailbox.
+4. Click Prepare Outlook drafts.
+5. Review and send the messages from Outlook Drafts.
 
-The automation creates unsent email files only. It does not send anything.
-
-Important:
-- Keep the Excel column names unchanged.
-- Use only the .eml files in Output\eml.
-- Do not drag all 100 files into Outlook at once; Outlook may freeze.
-- The current safe test creates the email files. The next production step is to create Outlook drafts one at a time through Outlook.
-
-For the first test, the Input folder already contains a dummy workbook. After testing, remove it before adding real data.
+Drafts are saved one at a time without opening message windows.
+Nothing is sent automatically. Stop finishes the current case then stops.
+Rows with the same Case ID combine their assets into one email.
+Already processed cases are skipped. Changed or conflicting cases need review.
+Keep the Data folder: it prevents repeated drafts across days.
+Use one installation per mailbox. Move Data too when moving the installation.
+Click Open results folder after a run to see Results.txt.
+Without Outlook, Save EML test files lets you inspect individual email files.
+Never open or drag all 100 EML files together.

@@ -65,13 +65,13 @@ def build_html(case: dict[str, Any], banner_path: Path | None = None) -> tuple[s
     if locality:
         address_parts.append(locality)
     address = "<br>".join(esc(part) for part in address_parts if part)
-    assets = "".join(f"<div>{esc(asset)}</div>" for asset in case["assets"])
+    assets = "<br>".join(esc(asset) for asset in case["assets"])
     cid = ""
     banner = ""
     attachments: dict[str, str] = {}
     if banner_path and banner_path.exists():
         cid = "ecoreco-banner@draft-automation"
-        banner = f'<p><img src="cid:{cid}" style="max-width:820px;width:100%;height:auto" alt="EcoReco"></p>'
+        banner = f'<p class="wordsection1" style="margin:0"><img border="0" width="655" height="106" src="cid:{cid}" alt="EcoReco"></p>'
         attachments[cid] = str(banner_path)
 
     body = f"""<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40"><head><meta http-equiv=Content-Type content="text/html; charset=us-ascii"><style>
@@ -102,9 +102,13 @@ def read_cases(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
     sheet = workbook[workbook.sheetnames[0]]
     rows = list(sheet.iter_rows(values_only=True))
+    workbook.close()
     if not rows:
         raise ValueError("The workbook is empty.")
     headers = [text(value) for value in rows[0]]
+    required = {'Case ID', "User's Name", "User's Email", 'Line Address 1', 'City', 'Country', 'Asset Serial Number'}
+    if required - set(headers):
+        raise ValueError('Missing columns: ' + ', '.join(sorted(required - set(headers))))
     grouped: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
     skipped: list[dict[str, Any]] = []
     for row_number, values in enumerate(rows[1:], start=2):
@@ -112,9 +116,6 @@ def read_cases(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         case_id = first(row, "Case ID")
         if not case_id:
             skipped.append({"row": row_number, "reason": "Missing Case ID"})
-            continue
-        if is_yes(first(row, "Duplicate")):
-            skipped.append({"row": row_number, "case_id": case_id, "reason": "Marked duplicate"})
             continue
         grouped.setdefault(case_id, []).append(row)
 
@@ -141,8 +142,19 @@ def read_cases(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
             "source_row_count": len(case_rows),
         }
         missing = []
+        if not re.fullmatch(r'[A-Za-z0-9_-]+', case_id): missing.append('Invalid Case ID')
+        for field in ["User's Name", "User's Email", 'Line Address 1', 'Line Address 2', 'City', 'State/Province', 'Country', 'Zipcode/Postal Code']:
+            if len({first(r, field).casefold() for r in case_rows}) > 1:
+                missing.append('Conflicting ' + field)
+        if any(is_yes(first(r, 'Duplicate')) for r in case_rows):
+            missing.append('Duplicate flag: confirm case before drafting')
+        if any(not first(r, 'Asset Serial Number') for r in case_rows):
+            missing.append('Asset missing on a case row')
+        if any('#NAME?' in first(r, 'Asset Serial Number') or '#REF!' in first(r, 'Asset Serial Number') for r in case_rows):
+            missing.append('Asset contains Excel error')
         if not case["name"]: missing.append("User's Name")
-        if not valid_email(case["email"]): missing.append("User's Email")
+        if not valid_email(case["email"]) or any(c in case['email'] for c in '\r\n'): missing.append("User's Email")
+        if any(c in case['name'] for c in '\r\n'): missing.append('Invalid name')
         if not case["address1"] or not case["city"] or not case["country"]: missing.append("Pickup address")
         if not case["assets"]: missing.append("Asset details")
         case["missing_fields"] = missing
@@ -179,7 +191,7 @@ def create_eml(case: dict[str, Any], body: str, output: Path, attachments: dict[
     # nesting can leave the CID image one level too deep, showing broken-image
     # alt text when an EML is imported into Outlook.
     message = MIMEMultipart("related")
-    message["To"] = "; ".join(recipients(case["email"]))
+    message["To"] = ", ".join(recipients(case["email"]))
     message["Subject"] = case["subject"]
     message["Date"] = formatdate(localtime=True)
     alternative = MIMEMultipart("alternative")
@@ -209,6 +221,8 @@ def main() -> None:
     parser.add_argument("--create-eml", action="store_true", help="Write unsent .eml files for manual review")
     parser.add_argument("--create-html-preview", action="store_true", help="Also write browser-viewable HTML previews")
     args = parser.parse_args()
+    if args.create_outlook_drafts:
+        parser.error('Use Prepare Drafts.bat for Outlook drafts with mailbox selection and duplicate protection.')
 
     if args.banner is None:
         default_banner = Path(__file__).with_name("signature-banner.png")
