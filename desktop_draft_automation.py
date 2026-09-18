@@ -71,22 +71,27 @@ def build_html(case: dict[str, Any], banner_path: Path | None = None) -> tuple[s
         banner = f'<p><img src="cid:{cid}" style="max-width:820px;width:100%;height:auto" alt="EcoReco"></p>'
         attachments[cid] = str(banner_path)
 
-    body = f"""<div style="font-family:Calibri,Arial,sans-serif;font-size:15px;color:#0b1f3a;line-height:1.5;max-width:900px">
-<p>Hello,</p>
-<p>Greetings from Ecoreco !!</p>
-<p><strong>Eco Recycling Ltd, is authorized by Salesforce for the collection of assets from your below mentioned address,</strong></p>
-<table style="border-collapse:collapse;width:100%;max-width:860px" border="1" cellpadding="12" cellspacing="0">
-<tr><td style="width:115px;text-align:center;vertical-align:middle">Pickup<br>Address</td><td>{address}</td></tr>
-<tr><td style="width:115px;text-align:center;vertical-align:middle">Asset Type &amp;<br>Serial<br>Number</td><td>{assets}</td></tr>
-</table>
-<p>Kindly confirm the pickup address and asset serial no details so that we can initiate the reverse collection process.</p>
-<p><strong style="background:#ffff00">If there are any discrepancies, please inform us at your earliest convenience.</strong></p>
-<p>We look forward to your response to proceed further.</p>
-<p><strong>Thanks &amp; Regards,</strong></p>
-<p><strong>CRM Executive</strong> | <a href="tel:+912240052951">+91-22-4005 2951</a>/<a href="tel:+919004149714">+91-9004149714</a> | <a href="https://www.ecoreco.com/">www.ecoreco.com</a><br>
-<strong>Eco Recycling Limited</strong><br>
-422, The Summit Business Park | <a href="https://www.google.com/maps/search/Andheri+Kurla+road+%7C+Andheri+(East),+Mumbai+400093">Andheri Kurla road | Andheri (East), Mumbai 400093</a></p>
-{banner}</div>"""
+    body = f"""<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40"><head><meta http-equiv=Content-Type content="text/html; charset=us-ascii"><style>
+p.MsoNormal,li.MsoNormal,div.MsoNormal {{ margin:0cm; margin-bottom:.0001pt; font-size:11.0pt; font-family:"Calibri",sans-serif; }}
+p.wordsection1,li.wordsection1,div.wordsection1 {{ margin-right:0cm; margin-left:0cm; font-size:12.0pt; font-family:"Times New Roman",serif; }}
+a:link {{ color:#0563C1; text-decoration:underline; }}
+</style></head><body lang=EN-US link="#0563C1" vlink="#954F72"><div class=WordSection1>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Hello,<o:p></o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Greetings from Ecoreco !!<o:p></o:p></span></p>
+<p class=wordsection1 style='margin-bottom:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Eco Recycling Ltd, is authorized by Salesforce for the collection of assets from your below mentioned address, <o:p></o:p></span></b></p>
+<p class=wordsection1 style='margin-bottom:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></b></p>
+<table class=MsoNormalTable border=0 cellspacing=0 cellpadding=0 width=0 style='width:517.0pt;border-collapse:collapse'><tr style='height:40.9pt'><td width=228 style='width:171.0pt;border:solid windowtext 1.0pt;padding:0cm 5.4pt 0cm 5.4pt;height:40.9pt'><p class=MsoNormal align=center style='mso-margin-top-alt:auto;text-align:center'><span style='mso-fareast-language:EN-IN'>Pickup Address<o:p></o:p></span></p></td><td width=461 style='width:346.0pt;border:solid windowtext 1.0pt;border-left:none;padding:0cm 5.4pt 0cm 5.4pt;height:40.9pt'><p class=MsoNormal align=center style='text-align:center'><span style='color:black'>{address}<o:p></o:p></span></p></td></tr><tr style='height:66.05pt'><td width=228 style='width:171.0pt;border:solid windowtext 1.0pt;border-top:none;padding:0cm 5.4pt 0cm 5.4pt;height:66.05pt'><p class=MsoNormal align=center style='mso-margin-top-alt:auto;text-align:center'><span style='mso-fareast-language:EN-IN'>Asset Type &amp; Serial Number<o:p></o:p></span></p></td><td width=461 style='width:346.0pt;border-top:none;border-left:none;border-bottom:solid windowtext 1.0pt;border-right:solid windowtext 1.0pt;padding:0cm 5.4pt 0cm 5.4pt;height:66.05pt'><p class=MsoNormal><span style='color:black'>{assets}<o:p></o:p></span></p></td></tr></table>
+<p class=wordsection1><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Kindly confirm the pickup address and asset serial no details so that we can initiate the reverse collection process.<br><br><b><span style='background:yellow;mso-highlight:yellow'>If there are any discrepancies, please inform us at your earliest convenience.</span></b><o:p></o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>We look forward to your response to proceed further.<o:p></o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='color:black'>Thanks &amp; Regards,</span></b><b><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p></o:p></span></b></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p>&nbsp;</o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='color:black'>CRM Executive</span></b><span lang=EN-IN style='color:black'>| +91-22-4005 2951/+91-9004149714| </span><a href="http://www.ecoreco.com/"><span style='color:black'>www.ecoreco.com</span></a><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p></o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='color:black'>Eco Recycling Limited</span></b><span lang=EN-IN style='color:black'> </span><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p></o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='color:black'>422, The Summit Business Park | Andheri Kurla road | Andheri (East), Mumbai 400093</span><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p></o:p></span></p>
+{banner}
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></p></div></body></html>"""
     return body, attachments
 
 
@@ -191,6 +196,11 @@ def main() -> None:
     parser.add_argument("--create-outlook-drafts", action="store_true", help="Save drafts in the logged-in classic Outlook profile")
     parser.add_argument("--create-eml", action="store_true", help="Write unsent .eml files for manual review")
     args = parser.parse_args()
+
+    if args.banner is None:
+        default_banner = Path(__file__).with_name("signature-banner.png")
+        if default_banner.exists():
+            args.banner = default_banner
 
     args.output.mkdir(parents=True, exist_ok=True)
     cases, skipped = read_cases(args.input)
