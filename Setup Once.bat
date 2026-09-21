@@ -8,6 +8,17 @@ for /f "delims=" %%P in ('where python 2^>nul') do (
   echo %%P | findstr /i "\\WindowsApps\\" >nul
   if errorlevel 1 if not defined PYTHON_EXE set "PYTHON_EXE=%%P"
 )
+rem Also search standard installer locations in case PATH was not updated.
+if not defined PYTHON_EXE (
+  for /d %%D in ("%ProgramFiles%\Python3*") do (
+    if exist "%%~D\python.exe" if not defined PYTHON_EXE set "PYTHON_EXE=%%~D\python.exe"
+  )
+)
+if not defined PYTHON_EXE (
+  for /d %%D in ("%LocalAppData%\Programs\Python\Python3*") do (
+    if exist "%%~D\python.exe" if not defined PYTHON_EXE set "PYTHON_EXE=%%~D\python.exe"
+  )
+)
 if not defined PYTHON_EXE goto no_python
 "%PYTHON_EXE%" -c "import sys; print('Found Python ' + sys.version.split()[0]); raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
 if errorlevel 1 goto old_python
