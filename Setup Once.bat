@@ -1,6 +1,8 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+set "ROOT=%~dp0"
+cd /d "%ROOT%"
+if not exist "%ROOT%requirements.txt" goto missing_requirements
 set "PYTHON_EXE="
 rem Ignore the WindowsApps alias: it can launch Python Manager and hang while
 rem attempting a blocked Microsoft Store installation.
@@ -30,7 +32,7 @@ if not exist ".venv\Scripts\python.exe" (
 echo Installing all required packages into the automation environment...
 ".venv\Scripts\python.exe" -m pip install --upgrade pip
 if errorlevel 1 goto packages_failed
-".venv\Scripts\python.exe" -m pip install -r requirements.txt
+".venv\Scripts\python.exe" -m pip install -r "%ROOT%requirements.txt"
 if errorlevel 1 goto packages_failed
 ".venv\Scripts\python.exe" -c "import openpyxl, win32com.client; print('Required packages verified.')"
 if errorlevel 1 goto packages_failed
@@ -42,6 +44,12 @@ echo A real Python installation was not found.
 echo The WindowsApps Python alias is not sufficient and may be blocked by company policy.
 echo Ask IT to install Python 3.11 or newer from https://www.python.org/downloads/windows/
 echo During installation, enable ^"Add python.exe to PATH^".
+pause
+exit /b 1
+:missing_requirements
+echo The repository is incomplete: requirements.txt was not found beside Setup Once.bat.
+echo Download the complete Salesforce repository and run Setup Once.bat from its main folder.
+echo Expected folder: %ROOT%
 pause
 exit /b 1
 :old_python
