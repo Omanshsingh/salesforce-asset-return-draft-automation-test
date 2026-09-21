@@ -1,5 +1,5 @@
 FIRST TIME
-1. Install Python 3.11 or newer if needed.
+1. Ask IT to install Python 3.11 or newer if Python is not already installed. The Windows Store/Python Manager alias is not enough for this automation.
 2. Double-click Setup Once.bat and wait for Setup complete.
 3. Open Classic Outlook with the correct account.
 
