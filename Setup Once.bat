@@ -11,8 +11,17 @@ for /f "delims=" %%P in ('where python 2^>nul') do (
 if not defined PYTHON_EXE goto no_python
 "%PYTHON_EXE%" -c "import sys; print('Found Python ' + sys.version.split()[0]); raise SystemExit(0 if sys.version_info >= (3, 11) else 1)"
 if errorlevel 1 goto old_python
-echo Installing the required packages for this Windows user...
-"%PYTHON_EXE%" -m pip install --user -r requirements.txt
+if not exist ".venv\Scripts\python.exe" (
+  echo Creating the automation environment...
+  "%PYTHON_EXE%" -m venv .venv
+  if errorlevel 1 goto venv_failed
+)
+echo Installing all required packages into the automation environment...
+".venv\Scripts\python.exe" -m pip install --upgrade pip
+if errorlevel 1 goto packages_failed
+".venv\Scripts\python.exe" -m pip install -r requirements.txt
+if errorlevel 1 goto packages_failed
+".venv\Scripts\python.exe" -c "import openpyxl, win32com.client; print('Required packages verified.')"
 if errorlevel 1 goto packages_failed
 echo Setup complete. Double-click Prepare Drafts.bat.
 pause
@@ -29,8 +38,13 @@ echo The Python found above is older than 3.11.
 echo Install Python 3.11 or newer from https://www.python.org/downloads/windows/ and try again.
 pause
 exit /b 1
+:venv_failed
+echo Python was found, but the local automation environment could not be created.
+echo Check that this folder is writable and that antivirus did not block Python.
+pause
+exit /b 1
 :packages_failed
 echo Python is installed, but the required packages could not be installed.
-echo Check the internet connection or ask IT to allow Python package installation.
+echo Ask IT to allow Python to create the local .venv folder and download packages.
 pause
 exit /b 1

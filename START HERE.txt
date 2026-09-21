@@ -1,6 +1,6 @@
 FIRST TIME
 1. Ask IT to install Python 3.11 or newer if Python is not already installed. The Windows Store/Python Manager alias is not enough for this automation.
-2. Double-click Setup Once.bat and wait for Setup complete.
+2. From this folder, right-click Setup Once.bat and choose Run as administrator. It creates the local .venv and installs all required packages in one run.
 3. Open Classic Outlook with the correct account.
 
 FIRST TEST
