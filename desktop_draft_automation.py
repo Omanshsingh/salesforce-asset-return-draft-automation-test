@@ -134,6 +134,7 @@ def postal_conflict(case: dict[str, Any]) -> bool:
 
 def build_html(case: dict[str, Any], banner_path: Path | None = None) -> tuple[str, dict[str, str]]:
     esc = lambda value: html.escape(text(value), quote=True)
+    greeting = f"Hello, {esc(case.get('name'))}," if text(case.get('name')) else "Hello,"
     address_parts = address_lines(case)
     address = esc(address_value(case))
     assets = "<br>".join(esc(asset) for asset in case["assets"])
@@ -153,7 +154,7 @@ body, table, td, p, div, span, b, strong, a {{ font-size:11.0pt; font-family:"Ca
 td {{ vertical-align:middle; }}
 a:link {{ color:#0563C1; text-decoration:underline; }}
 </style></head><body lang=EN-US link="#0563C1" vlink="#954F72" style='font-size:11.0pt;font-family:"Calibri",sans-serif'><div class=WordSection1 style='font-size:11.0pt;font-family:"Calibri",sans-serif'>
-<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Hello,<o:p></o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>{greeting}<o:p></o:p></span></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Greetings from Ecoreco !!<o:p></o:p></span></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></p>
