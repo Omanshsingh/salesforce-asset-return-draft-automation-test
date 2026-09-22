@@ -134,7 +134,7 @@ def postal_conflict(case: dict[str, Any]) -> bool:
 
 def build_html(case: dict[str, Any], banner_path: Path | None = None) -> tuple[str, dict[str, str]]:
     esc = lambda value: html.escape(text(value), quote=True)
-    greeting = f"Hello, {esc(case.get('name'))}," if text(case.get('name')) else "Hello,"
+    greeting = f"Hello {esc(case.get('name'))}," if text(case.get('name')) else "Hello,"
     address_parts = address_lines(case)
     address = esc(address_value(case))
     assets = "<br>".join(esc(asset) for asset in case["assets"])
