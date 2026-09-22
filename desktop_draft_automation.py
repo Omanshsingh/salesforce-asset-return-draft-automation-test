@@ -49,51 +49,127 @@ def is_yes(value: str) -> bool:
 
 
 def valid_email(value: str) -> bool:
-    # Supports the workbook's semicolon-separated multiple-recipient format.
-    addresses = [part.strip() for part in re.split(r"[;,]", value) if part.strip()]
+    # Salesforce exports may separate recipients with semicolons, commas, or
+    # line breaks. A period is never a separator because it belongs in domains.
+    addresses = recipients(value)
     return bool(addresses) and all(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", a) for a in addresses)
 
 
 def recipients(value: str) -> list[str]:
-    return [part.strip() for part in re.split(r"[;,]", value) if part.strip()]
+    result: list[str] = []
+    seen: set[str] = set()
+    for part in re.split(r"[;,\r\n]+", text(value)):
+        address = part.strip()
+        key = address.casefold()
+        if address and key not in seen:
+            result.append(address)
+            seen.add(key)
+    return result
+
+
+def address_case(value: str) -> str:
+    def format_word(match: re.Match[str]) -> str:
+        word = match.group(0)
+        if word.isupper() and len(word) <= 4:
+            return word
+        if len(word) > 1 and word[0].isupper() and word[1:].islower():
+            return word
+        return word[:1].upper() + word[1:].lower()
+
+    return re.sub(r"[A-Za-z]+", format_word, text(value))
+
+
+def address_tokens(value: str) -> list[str]:
+    return re.findall(r"[^\W_]+", text(value).casefold(), flags=re.UNICODE)
+
+
+def contains_address_field(existing: str, value: str, postal: bool = False) -> bool:
+    tokens = address_tokens(existing)
+    wanted = address_tokens(value)
+    if not wanted:
+        return True
+    # Match complete tokens, never substrings such as York inside Yorkshire.
+    if any(tokens[i:i + len(wanted)] == wanted for i in range(len(tokens))):
+        return True
+    if postal:
+        # Postal codes may contain spaces/hyphens: 411 045 or SW1A-1AA.
+        code = "".join(wanted)
+        return any(
+            "".join(tokens[i:j]) == code
+            for i in range(len(tokens))
+            for j in range(i + 1, min(len(tokens), i + len(code)) + 1)
+        )
+    return False
+
+
+def address_lines(case: dict[str, Any]) -> list[str]:
+    lines = [address_case(case.get(key)) for key in ("address1", "address2") if text(case.get(key))]
+    extra = []
+    for key in ("city", "state", "country", "postal"):
+        value = text(case.get(key))
+        if value and not contains_address_field(" ".join(lines + extra), value, postal=key == "postal"):
+            extra.append(address_case(value))
+    if extra:
+        lines.append(", ".join(extra))
+    return lines
+
+
+def address_value(case: dict[str, Any]) -> str:
+    # Keep one flowing address so Outlook wraps only when the cell is full.
+    return ", ".join(re.sub(r"\s+", " ", line).strip() for line in address_lines(case))
+
+
+def postal_conflict(case: dict[str, Any]) -> bool:
+    # Only clearly labelled Indian PINs are checked; an arbitrary number may
+    # be a building number or phone number and must not be guessed as a PIN.
+    if text(case.get("country")).casefold() != "india":
+        return False
+    expected = "".join(address_tokens(case.get("postal", "")))
+    if not re.fullmatch(r"[1-9][0-9]{5}", expected):
+        return False
+    address = " ".join(text(case.get(key)) for key in ("address1", "address2"))
+    found = re.findall(r"\bpin(?:\s*code)?\s*[:.\-]?\s*([1-9][0-9]{2}[ -]?[0-9]{3})\b", address, re.I)
+    return any(re.sub(r"\D", "", value) != expected for value in found)
 
 
 def build_html(case: dict[str, Any], banner_path: Path | None = None) -> tuple[str, dict[str, str]]:
     esc = lambda value: html.escape(text(value), quote=True)
-    address_parts = [case["address1"], case["address2"]]
-    locality = ", ".join(part for part in [case["city"], case["state"], case["country"], case["postal"]] if part)
-    if locality:
-        address_parts.append(locality)
-    address = "<br>".join(esc(part) for part in address_parts if part)
+    address_parts = address_lines(case)
+    address = esc(address_value(case))
     assets = "<br>".join(esc(asset) for asset in case["assets"])
     cid = ""
-    banner = ""
+    banner_image = ""
     attachments: dict[str, str] = {}
     if banner_path and banner_path.exists():
         cid = "ecoreco-banner@draft-automation"
-        banner = f'<p class="wordsection1" style="margin:0"><img border="0" width="655" height="106" src="cid:{cid}" alt="EcoReco"></p>'
+        banner_image = f'<img border="0" width="655" height="106" src="cid:{cid}" alt="EcoReco">'
         attachments[cid] = str(banner_path)
 
     body = f"""<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40"><head><meta http-equiv=Content-Type content="text/html; charset=us-ascii"><style>
 p.MsoNormal,li.MsoNormal,div.MsoNormal {{ margin:0cm; margin-bottom:.0001pt; font-size:11.0pt; font-family:"Calibri",sans-serif; }}
-p.wordsection1,li.wordsection1,div.wordsection1 {{ margin-right:0cm; margin-left:0cm; font-size:12.0pt; font-family:"Times New Roman",serif; }}
+p.wordsection1,li.wordsection1,div.wordsection1 {{ margin:0cm; font-size:11.0pt; font-family:"Calibri",sans-serif; }}
+p.MsoNormal {{ margin:0cm; font-size:11.0pt; font-family:"Calibri",sans-serif; line-height:1.15; }}
+body, table, td, p, div, span, b, strong, a {{ font-size:11.0pt; font-family:"Calibri",sans-serif; }}
+td {{ vertical-align:middle; }}
 a:link {{ color:#0563C1; text-decoration:underline; }}
-</style></head><body lang=EN-US link="#0563C1" vlink="#954F72"><div class=WordSection1>
+</style></head><body lang=EN-US link="#0563C1" vlink="#954F72" style='font-size:11.0pt;font-family:"Calibri",sans-serif'><div class=WordSection1 style='font-size:11.0pt;font-family:"Calibri",sans-serif'>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Hello,<o:p></o:p></span></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Greetings from Ecoreco !!<o:p></o:p></span></p>
 <p class=wordsection1 style='margin-bottom:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Eco Recycling Ltd, is authorized by Salesforce for the collection of assets from your below mentioned address, <o:p></o:p></span></b></p>
 <p class=wordsection1 style='margin-bottom:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></b></p>
-<table class=MsoNormalTable border=0 cellspacing=0 cellpadding=0 width=0 style='width:517.0pt;border-collapse:collapse'><tr style='height:40.9pt'><td width=228 style='width:171.0pt;border:solid windowtext 1.0pt;padding:0cm 5.4pt 0cm 5.4pt;height:40.9pt'><p class=MsoNormal align=center style='mso-margin-top-alt:auto;text-align:center'><span style='mso-fareast-language:EN-IN'>Pickup Address<o:p></o:p></span></p></td><td width=461 style='width:346.0pt;border:solid windowtext 1.0pt;border-left:none;padding:0cm 5.4pt 0cm 5.4pt;height:40.9pt'><p class=MsoNormal align=center style='text-align:center'><span style='color:black'>{address}<o:p></o:p></span></p></td></tr><tr style='height:66.05pt'><td width=228 style='width:171.0pt;border:solid windowtext 1.0pt;border-top:none;padding:0cm 5.4pt 0cm 5.4pt;height:66.05pt'><p class=MsoNormal align=center style='mso-margin-top-alt:auto;text-align:center'><span style='mso-fareast-language:EN-IN'>Asset Type &amp; Serial Number<o:p></o:p></span></p></td><td width=461 style='width:346.0pt;border-top:none;border-left:none;border-bottom:solid windowtext 1.0pt;border-right:solid windowtext 1.0pt;padding:0cm 5.4pt 0cm 5.4pt;height:66.05pt'><p class=MsoNormal><span style='color:black'>{assets}<o:p></o:p></span></p></td></tr></table>
+<table class="MsoNormalTable" border="0" cellspacing="0" cellpadding="0" width="540" style="width:405pt;border-collapse:collapse;table-layout:fixed;mso-table-lspace:0pt;mso-table-rspace:0pt">
+<tr><td width="200" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:150pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center"><b>Pickup Address</b></p></td><td width="340" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:255pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center">{address}</p></td></tr>
+<tr><td width="200" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:150pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center"><b>Asset Type &amp;<br>Serial Number</b></p></td><td width="340" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:255pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center">{assets}</p></td></tr>
+</table>
+<p class="MsoNormal" style="margin:0;font-size:11pt;line-height:10pt"><o:p>&nbsp;</o:p></p>
 <p class=wordsection1><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Kindly confirm the pickup address and asset serial no details so that we can initiate the reverse collection process.<br><br><b><span style='background:yellow;mso-highlight:yellow'>If there are any discrepancies, please inform us at your earliest convenience.</span></b><o:p></o:p></span></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>We look forward to your response to proceed further.<o:p></o:p></span></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></p>
-<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='color:black'>Thanks &amp; Regards,</span></b><b><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p></o:p></span></b></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:12.0pt'><b><span lang=EN-IN style='color:#0F243E'>Thanks &amp; Regards,</span></b><b><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:#0F243E'><o:p></o:p></span></b></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p>&nbsp;</o:p></span></p>
-<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='color:black'>CRM Executive</span></b><span lang=EN-IN style='color:black'>| +91-22-4005 2951/+91-9004149714| </span><a href="http://www.ecoreco.com/"><span style='color:black'>www.ecoreco.com</span></a><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p></o:p></span></p>
-<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='color:black'>Eco Recycling Limited</span></b><span lang=EN-IN style='color:black'> </span><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p></o:p></span></p>
-<p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='color:black'>422, The Summit Business Park | Andheri Kurla road | Andheri (East), Mumbai 400093</span><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:black'><o:p></o:p></span></p>
-{banner}
+<p class=wordsection1 style='margin:0cm;margin-bottom:12.0pt'><b><span lang=EN-IN style='color:#0F243E'>CRM Executive</span></b><span lang=EN-IN style='color:#0F243E'> | +91-22-4005 2951/+91-9004149714 | </span><a href="http://www.ecoreco.com/"><span style='color:#0F243E'>www.ecoreco.com</span></a><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif;color:#0F243E'><br>Eco Recycling Limited | 422, The Summit Business Park | Andheri Kurla road | Andheri (East), Mumbai 400093<o:p></o:p></span></p>
+<p class=wordsection1 style='margin:0cm;margin-bottom:12.0pt'><b><span lang=EN-IN style='color:#0F243E'>{banner_image}</span></b><span lang=EN-IN style='color:#0F243E'><o:p></o:p></span></p>
 <p class=wordsection1 style='margin:0cm;margin-bottom:.0001pt'><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></p></div></body></html>"""
     return body, attachments
 
@@ -142,6 +218,8 @@ def read_cases(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
             "source_row_count": len(case_rows),
         }
         missing = []
+        if postal_conflict(case):
+            missing.append("Conflicting PIN code in address and postal column")
         if not re.fullmatch(r'[A-Za-z0-9_-]+', case_id): missing.append('Invalid Case ID')
         for field in ["User's Name", "User's Email", 'Line Address 1', 'Line Address 2', 'City', 'State/Province', 'Country', 'Zipcode/Postal Code']:
             if len({first(r, field).casefold() for r in case_rows}) > 1:
