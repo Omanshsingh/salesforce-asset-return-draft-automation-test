@@ -1,12 +1,9 @@
-import copy
 import tempfile
 import unittest
 from unittest.mock import MagicMock
 from pathlib import Path
-from email import policy
-from email.parser import BytesParser
-from desktop_draft_automation import read_cases, build_html, create_eml
-from draft_service import History, run_cases, OutlookWriter
+from desktop_draft_automation import read_cases, build_html, recipients
+from draft_service import run_cases, OutlookWriter
 
 BASE = Path(__file__).resolve().parents[1]
 
@@ -20,38 +17,35 @@ class FakeWriter:
 class Tests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.folder = Path(self.tmp.name)
-        self.history = History(self.folder/'history.sqlite')
         self.cases, _ = read_cases(BASE/'Omansh_Test_Dummy_100_Cases.xlsx')
         self.writer = FakeWriter()
-    def tearDown(self): self.history.close(); self.tmp.cleanup()
+    def tearDown(self): self.tmp.cleanup()
     def run_batch(self, **kwargs):
-        return run_cases(self.cases,self.writer,self.history,BASE/'signature-banner.png',self.folder/'Results.txt',lambda t:None,lambda:False,delay=0,**kwargs)
+        return run_cases(self.cases,self.writer,BASE/'signature-banner.png',self.folder/'Results.txt',lambda t:None,lambda:False,delay=0,**kwargs)
     def test_100_cases_and_rerun(self):
         self.assertEqual(len(self.cases),100)
         self.assertEqual(sum(len(c['assets']) for c in self.cases),157)
         self.assertTrue(all(c['email'].endswith('@example.test') for c in self.cases))
         self.assertEqual(self.run_batch(),100)
-        self.assertEqual(self.run_batch(),0)
+        self.assertEqual(self.run_batch(),100)
+        self.assertEqual(len(self.writer.saved),200)
     def test_limit_and_changes(self):
         self.assertEqual(self.run_batch(limit=2),2)
-        changed = copy.deepcopy(self.cases[0]); changed['address1'] += ' changed'
-        self.assertIn('changed',self.history.reserve(self.writer.mailbox,changed))
+        self.assertEqual(self.run_batch(limit=2),2)
     def test_uncertain_save_blocks_retry(self):
         self.writer.fail = True
         with self.assertRaises(RuntimeError): self.run_batch(limit=2)
-        self.assertIn('interrupted',self.history.reserve(self.writer.mailbox,self.cases[0]))
         self.assertFalse(self.writer.saved)
-    def test_eml_image_and_grouping(self):
+    def test_asset_lines_and_grouping(self):
         case = next(c for c in self.cases if len(c['assets'])==3)
         body, images = build_html(case,BASE/'signature-banner.png')
-        p = create_eml(case,body,self.folder,images)
-        msg = BytesParser(policy=policy.default).parsebytes(p.read_bytes())
-        self.assertEqual(msg.get_content_type(),'multipart/related')
-        image = next(p for p in msg.walk() if p.get_content_type()=='image/png')
-        self.assertEqual(image.get_payload(decode=True),(BASE/'signature-banner.png').read_bytes())
-        for asset in case['assets']: self.assertIn(asset,msg.get_body(('html',)).get_content())
+        for asset in case['assets']: self.assertIn(asset,body)
+        self.assertEqual(body.count('white-space:nowrap;word-break:keep-all'), len(case['assets']))
+        self.assertGreaterEqual(body.count('<br>'), len(case['assets']) + 1)
         self.assertIn('width="655"',body)
-        self.assertFalse(list(self.folder.glob('*.html')))
+    def test_recipients_accept_common_separators_and_deduplicate(self):
+        value = 'first@example.test second@example.test\nFIRST@example.test; third@example.test'
+        self.assertEqual(recipients(value), ['first@example.test','second@example.test','third@example.test'])
     def test_outlook_adapter_saves_without_opening_or_sending(self):
         writer = OutlookWriter.__new__(OutlookWriter)
         writer.account = object(); writer.folder = MagicMock(); writer.app = MagicMock()
@@ -64,15 +58,5 @@ class Tests(unittest.TestCase):
         message.Send.assert_not_called()
         self.assertIs(message.SendUsingAccount,writer.account)
         message.Attachments.Add.assert_called_once()
-    def test_history_survives_reopen(self):
-        self.run_batch(limit=2)
-        self.history.close()
-        self.history = History(self.folder/'history.sqlite')
-        self.assertEqual(self.run_batch(),98)
-    def test_reset_pending_only(self):
-        self.history.reserve(self.writer.mailbox, self.cases[0])
-        self.history.complete(self.writer.mailbox, self.cases[1], 'saved-id') if False else None
-        self.assertEqual(self.history.reset_pending(),1)
-        self.assertIsNone(self.history.reserve(self.writer.mailbox, self.cases[0]))
 
 if __name__ == '__main__': unittest.main()

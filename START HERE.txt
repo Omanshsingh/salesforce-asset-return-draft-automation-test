@@ -1,6 +1,6 @@
 FIRST TIME
-1. Ask IT to install Python 3.11 or newer if Python is not already installed. The Windows Store/Python Manager alias is not enough for this automation.
-2. From this folder, right-click Setup Once.bat and choose Run as administrator. It creates the local .venv and installs all required packages in one run.
+1. Install Python 3.11 or newer if needed.
+2. Double-click Setup Once.bat and wait for Setup complete.
 3. Open Classic Outlook with the correct account.
 
 FIRST TEST
@@ -19,11 +19,10 @@ DAILY USE
 
 Drafts are saved one at a time without opening message windows.
 Nothing is sent automatically. Stop finishes the current case then stops.
-If a save is interrupted, check Outlook Drafts first. Then use Reset interrupted cases before retrying.
+If a save is interrupted, check Outlook Drafts first, then run the workbook again when ready.
 Rows with the same Case ID combine their assets into one email.
 Already processed cases are skipped. Changed or conflicting cases need review.
 Keep the Data folder: it prevents repeated drafts across days.
 Use one installation per mailbox. Move Data too when moving the installation.
 Click Open results folder after a run to see Results.txt.
-Without Outlook, Save EML test files lets you inspect individual email files.
-Never open or drag all 100 EML files together.
+Classic Outlook must be open and signed in when creating drafts. The app creates drafts directly and does not create or open EML files.

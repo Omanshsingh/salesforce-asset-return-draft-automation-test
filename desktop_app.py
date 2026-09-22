@@ -5,8 +5,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 from datetime import datetime
-from desktop_draft_automation import read_cases, build_html, create_eml, recipients
-from draft_service import History, OutlookWriter, run_cases
+from desktop_draft_automation import read_cases, recipients
+from draft_service import OutlookWriter, run_cases
 
 BASE = Path(__file__).resolve().parent
 
@@ -31,9 +31,7 @@ class App:
         self.button(row2, 'Test 2 dummy drafts', lambda: self.start('test'), side='left')
         self.button(row2, '3. Prepare Outlook drafts', lambda: self.start('outlook'), side='left')
         row3 = ttk.Frame(box); row3.pack(fill='x')
-        self.button(row3, 'Save EML test files', lambda: self.start('eml'), side='left')
-        ttk.Button(row3, text='Stop after current case', command=self.stop.set).pack(side='left', padx=6)
-        ttk.Button(row3, text='Reset interrupted cases', command=self.reset_pending).pack(side='left')
+        ttk.Button(row3, text='Force stop', command=self.stop.set).pack(side='left', padx=6)
         ttk.Button(row3, text='Open results folder', command=self.open_results).pack(side='left')
         self.status = ttk.Label(box, text='Ready. Nothing is sent automatically.', wraplength=630)
         self.status.pack(anchor='w', pady=18)
@@ -64,13 +62,13 @@ class App:
             if len(values) == 1: self.account.current(0)
             self.status.config(text='Select the mailbox where drafts should be saved.')
         except Exception:
-            messagebox.showerror('Classic Outlook required', 'Open Classic Outlook with your working email account. New Outlook does not support this connection. You can still use Save EML test files.')
+            messagebox.showerror('Classic Outlook required', 'Open Classic Outlook with your working email account. New Outlook does not support this connection.')
 
     def start(self, mode):
         if self.busy: return
         if not self.cases:
             messagebox.showinfo('Choose Excel', 'Select your Excel file first.'); return
-        if mode != 'eml' and not self.account.get():
+        if not self.account.get():
             messagebox.showinfo('Select mailbox', 'Load Outlook accounts and select a mailbox first.'); return
         cases = list(self.cases)
         if mode == 'test':
@@ -78,42 +76,28 @@ class App:
                 messagebox.showerror('Use dummy data', 'Test 2 dummy drafts requires only @example.test recipients.'); return
             cases.sort(key=lambda c: (len(c['assets']) < 2, c['case_id']))
         count = sum(not c['missing_fields'] for c in cases)
-        if mode != 'eml' and not messagebox.askokcancel('Prepare drafts', f'Create up to {min(count,2) if mode == "test" else count} drafts in {self.account.get()}?\nPreviously processed cases will be skipped. Nothing will be sent.'): return
+        if not messagebox.askokcancel('Prepare drafts', f'Create up to {min(count,2) if mode == "test" else count} drafts in {self.account.get()}?\nNothing will be sent.'): return
         self.busy = True; self.stop.clear()
         for w in self.controls: w.config(state='disabled')
         self.status.config(text='Preparing. Please keep Outlook open.')
         threading.Thread(target=self.work, args=(mode,cases,self.account.get()), daemon=True).start()
 
     def work(self, mode, cases, account):
-        history = None; com = None
+        com = None
         try:
             folder = BASE / 'Output' / datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')
             folder.mkdir(parents=True); self.report_dir = folder
             banner = BASE / 'signature-banner.png'
             if not banner.is_file(): raise RuntimeError('Signature image missing. Restore signature-banner.png.')
-            if mode == 'eml':
-                count = 0
-                with (folder / 'Results.txt').open('w', encoding='utf-8') as report:
-                    for c in cases:
-                        if self.stop.is_set(): break
-                        if c['missing_fields']:
-                            report.write(c['case_id'] + ': Needs review: ' + '; '.join(c['missing_fields']) + '\n'); continue
-                        body, attachments = build_html(c,banner)
-                        create_eml(c,body,folder / 'Email files',attachments); count += 1
-                        report.write(c['case_id'] + ': Email file created\n')
-                result = f'{count} email files saved. Open results folder and test one file at a time.'
-            else:
-                import pythoncom
-                com = pythoncom; com.CoInitialize()
-                writer = OutlookWriter(account)
-                history = History(BASE / 'Data' / 'draft-history.sqlite')
-                count = run_cases(cases,writer,history,banner,folder / 'Results.txt',lambda t:self.events.put(('progress',t)),self.stop.is_set,limit=2 if mode == 'test' else None)
-                result = f'{count} new drafts saved in {account}. Review Outlook Drafts. See Results.txt for skipped cases.'
-                writer = None
+            import pythoncom
+            com = pythoncom; com.CoInitialize()
+            writer = OutlookWriter(account)
+            count = run_cases(cases,writer,banner,folder / 'Results.txt',lambda t:self.events.put(('progress',t)),self.stop.is_set,limit=2 if mode == 'test' else None)
+            result = f'{count} drafts saved in {account}. Review Outlook Drafts. See Results.txt for skipped cases.'
+            writer = None
             self.events.put(('done',result))
         except Exception as e: self.events.put(('error',str(e)))
         finally:
-            if history: history.close()
             if com: com.CoUninitialize()
 
     def poll(self):
@@ -127,14 +111,6 @@ class App:
 
     def open_results(self):
         self.report_dir.mkdir(parents=True,exist_ok=True); os.startfile(str(self.report_dir))
-
-    def reset_pending(self):
-        if self.busy: return
-        if not messagebox.askyesno('Check Outlook first', 'Use this only after checking Drafts for a draft from the interrupted run. Reset interrupted cases so they can be tried again?'):
-            return
-        history = History(BASE / 'Data' / 'draft-history.sqlite')
-        count = history.reset_pending(); history.close()
-        self.status.config(text=f'{count} interrupted case(s) reset. Check the Results file before retrying.')
 
     def close(self):
         if self.busy:

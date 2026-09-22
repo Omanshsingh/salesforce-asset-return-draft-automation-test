@@ -17,11 +17,6 @@ import json
 import re
 from collections import OrderedDict
 from datetime import datetime
-from email.message import EmailMessage
-from email.mime.image import MIMEImage
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.utils import formatdate
 from pathlib import Path
 from typing import Any
 
@@ -58,7 +53,10 @@ def valid_email(value: str) -> bool:
 def recipients(value: str) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
-    for part in re.split(r"[;,\r\n]+", text(value)):
+    # Salesforce exports may separate multiple recipients with commas,
+    # semicolons, spaces, or line breaks. Email addresses themselves cannot
+    # contain whitespace, so a space is safe to treat as a separator here.
+    for part in re.split(r"[;,\s]+", text(value)):
         address = part.strip()
         key = address.casefold()
         if address and key not in seen:
@@ -116,7 +114,18 @@ def address_lines(case: dict[str, Any]) -> list[str]:
 
 def address_value(case: dict[str, Any]) -> str:
     # Keep one flowing address so Outlook wraps only when the cell is full.
-    return ", ".join(re.sub(r"\s+", " ", line).strip() for line in address_lines(case))
+    # Normalize punctuation at the same time so source cells with line breaks,
+    # spaces before commas, or repeated commas render consistently.
+    parts = []
+    for line in address_lines(case):
+        value = re.sub(r"[\r\n]+", ", ", text(line))
+        value = re.sub(r"\s+", " ", value)
+        value = re.sub(r"\s*,\s*", ", ", value)
+        value = re.sub(r",\s*,+", ", ", value)
+        value = value.strip(" ,")
+        if value:
+            parts.append(value)
+    return ", ".join(parts)
 
 
 def postal_conflict(case: dict[str, Any]) -> bool:
@@ -137,7 +146,12 @@ def build_html(case: dict[str, Any], banner_path: Path | None = None) -> tuple[s
     greeting = f"Hello {esc(case.get('name'))}," if text(case.get('name')) else "Hello,"
     address_parts = address_lines(case)
     address = esc(address_value(case))
-    assets = "<br>".join(esc(asset) for asset in case["assets"])
+    # Keep each asset on one visual line. A single long asset must not be split
+    # across lines, while <br> still gives each asset its own line.
+    assets = "<br>".join(
+        f'<span style="white-space:nowrap;word-break:keep-all">{esc(asset)}</span>'
+        for asset in case["assets"]
+    )
     cid = ""
     banner_image = ""
     attachments: dict[str, str] = {}
@@ -162,7 +176,7 @@ a:link {{ color:#0563C1; text-decoration:underline; }}
 <p class=wordsection1 style='margin-bottom:0cm;margin-bottom:.0001pt'><b><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'><o:p>&nbsp;</o:p></span></b></p>
 <table class="MsoNormalTable" border="0" cellspacing="0" cellpadding="0" width="540" style="width:405pt;border-collapse:collapse;table-layout:fixed;mso-table-lspace:0pt;mso-table-rspace:0pt">
 <tr><td width="200" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:150pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center"><b>Pickup Address</b></p></td><td width="340" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:255pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center">{address}</p></td></tr>
-<tr><td width="200" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:150pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center"><b>Asset Type &amp;<br>Serial Number</b></p></td><td width="340" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:255pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center">{assets}</p></td></tr>
+<tr><td width="200" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:break-word;overflow-wrap:break-word;width:150pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center"><b>Asset Type &amp;<br>Serial Number</b></p></td><td width="340" valign="middle" style="border:1px solid #000;padding:4pt 8pt;vertical-align:middle;font-family:Calibri,Arial,sans-serif;font-size:11pt;word-wrap:normal;overflow-wrap:normal;white-space:nowrap;width:255pt"><p class="MsoNormal" align="center" style="margin:0;font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:13pt;mso-line-height-rule:exactly;text-align:center;white-space:nowrap">{assets}</p></td></tr>
 </table>
 <p class="MsoNormal" style="margin:0;font-size:11pt;line-height:10pt"><o:p>&nbsp;</o:p></p>
 <p class=wordsection1><span lang=EN-IN style='font-size:11.0pt;font-family:"Calibri",sans-serif'>Kindly confirm the pickup address and asset serial no details so that we can initiate the reverse collection process.<br><br><b><span style='background:yellow;mso-highlight:yellow'>If there are any discrepancies, please inform us at your earliest convenience.</span></b><br><br><o:p></o:p></span></p>
@@ -232,7 +246,7 @@ def read_cases(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         if any('#NAME?' in first(r, 'Asset Serial Number') or '#REF!' in first(r, 'Asset Serial Number') for r in case_rows):
             missing.append('Asset contains Excel error')
         if not case["name"]: missing.append("User's Name")
-        if not valid_email(case["email"]) or any(c in case['email'] for c in '\r\n'): missing.append("User's Email")
+        if not valid_email(case["email"]): missing.append("User's Email")
         if any(c in case['name'] for c in '\r\n'): missing.append('Invalid name')
         if not case["address1"] or not case["city"] or not case["country"]: missing.append("Pickup address")
         if not case["assets"]: missing.append("Asset details")
@@ -263,41 +277,12 @@ def create_outlook_draft(case: dict[str, Any], body: str, attachments: dict[str,
     return str(message.EntryID)
 
 
-def create_eml(case: dict[str, Any], body: str, output: Path, attachments: dict[str, str]) -> Path:
-    """Write an unsent RFC 822 email file that can be opened for review."""
-    # Outlook 2013 expects the HTML alternative and inline images to be siblings
-    # inside a top-level multipart/related message. EmailMessage's default
-    # nesting can leave the CID image one level too deep, showing broken-image
-    # alt text when an EML is imported into Outlook.
-    message = MIMEMultipart("related")
-    message["To"] = ", ".join(recipients(case["email"]))
-    message["Subject"] = case["subject"]
-    message["Date"] = formatdate(localtime=True)
-    alternative = MIMEMultipart("alternative")
-    alternative.attach(MIMEText("Please open this message in an HTML-capable mail application.", "plain", "utf-8"))
-    alternative.attach(MIMEText(body, "html", "utf-8"))
-    message.attach(alternative)
-    for cid, file_path in attachments.items():
-        data = Path(file_path).read_bytes()
-        suffix = Path(file_path).suffix.lower()
-        subtype = "png" if suffix == ".png" else "jpeg"
-        image = MIMEImage(data, _subtype=subtype)
-        image.add_header("Content-ID", f"<{cid}>")
-        image.add_header("Content-Disposition", "inline", filename=Path(file_path).name)
-        message.attach(image)
-    output.mkdir(parents=True, exist_ok=True)
-    target = output / f"{case['case_id']}.eml"
-    target.write_bytes(message.as_bytes())
-    return target
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create Salesforce asset-return Outlook drafts from Excel.")
     parser.add_argument("input", type=Path, help="Copied Salesforce workbook (.xlsx)")
     parser.add_argument("--output", type=Path, default=Path("draft_output"), help="Output folder for previews and manifest")
     parser.add_argument("--banner", type=Path, help="Optional EcoReco banner image to embed in drafts")
     parser.add_argument("--create-outlook-drafts", action="store_true", help="Save drafts in the logged-in classic Outlook profile")
-    parser.add_argument("--create-eml", action="store_true", help="Write unsent .eml files for manual review")
     parser.add_argument("--create-html-preview", action="store_true", help="Also write browser-viewable HTML previews")
     args = parser.parse_args()
     if args.create_outlook_drafts:
@@ -321,9 +306,8 @@ def main() -> None:
             preview = args.output / f"{case['case_id']}.html"
             preview.write_text(body, encoding="utf-8")
         draft_id = create_outlook_draft(case, body, attachments) if args.create_outlook_drafts else ""
-        eml_path = create_eml(case, body, args.output / "eml", attachments) if args.create_eml else None
-        action = "Outlook draft created" if draft_id else ("EML created" if eml_path else "Preview only")
-        manifest.append({**case, "draft_id": draft_id, "eml": str(eml_path) if eml_path else "", "preview": str(preview) if preview else "", "action": action})
+        action = "Outlook draft created" if draft_id else "Preview only"
+        manifest.append({**case, "draft_id": draft_id, "preview": str(preview) if preview else "", "action": action})
 
     (args.output / "manifest.json").write_text(json.dumps({"source": str(args.input), "cases": manifest, "skipped_rows": skipped}, indent=2, default=str), encoding="utf-8")
     with (args.output / "review.csv").open("w", newline="", encoding="utf-8") as handle:

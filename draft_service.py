@@ -1,47 +1,7 @@
-"""Sequential draft writer. No Send or Display calls. SQLite survives restarts."""
-import hashlib
-import json
-import sqlite3
+"""Sequential draft writer. No Send or Display calls."""
 import time
 from pathlib import Path
-from desktop_draft_automation import build_html
-
-class History:
-    def __init__(self, path):
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(path)
-        self.db.execute('CREATE TABLE IF NOT EXISTS drafts (mailbox TEXT, case_id TEXT, fingerprint TEXT, status TEXT, entry_id TEXT, PRIMARY KEY(mailbox,case_id))')
-        self.db.commit()
-
-    def reserve(self, mailbox, case):
-        content = {k: case[k] for k in ('name','email','address1','address2','city','state','country','postal')}
-        content['assets'] = sorted(case['assets'])
-        fingerprint = hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()
-        self.db.execute('BEGIN IMMEDIATE')
-        try:
-            prior = self.db.execute('SELECT fingerprint,status FROM drafts WHERE mailbox=? AND case_id=?', (mailbox,case['case_id'])).fetchone()
-            if prior:
-                self.db.commit()
-                if prior[1] == 'pending': return 'Needs review: earlier save interrupted; check Outlook before retrying'
-                return 'Already prepared' if prior[0] == fingerprint else 'Needs review: case changed since earlier draft'
-            self.db.execute('INSERT INTO drafts VALUES (?,?,?,?,?)', (mailbox,case['case_id'],fingerprint,'pending',''))
-            self.db.commit()
-            return None
-        except Exception:
-            self.db.rollback()
-            raise
-
-    def complete(self, mailbox, case, entry):
-        self.db.execute('UPDATE drafts SET status=?, entry_id=? WHERE mailbox=? AND case_id=?', ('saved',entry,mailbox,case['case_id']))
-        self.db.commit()
-
-    def reset_pending(self):
-        count = self.db.execute("DELETE FROM drafts WHERE status='pending'").rowcount
-        self.db.commit()
-        return count
-
-    def close(self):
-        self.db.close()
+from desktop_draft_automation import build_html, recipients
 
 class OutlookWriter:
     def __init__(self, smtp):
@@ -66,7 +26,7 @@ class OutlookWriter:
             except Exception:
                 pass
             message.BodyFormat = 2
-            message.To = case['email']
+            message.To = '; '.join(recipients(case['email']))
             message.Subject = case['subject']
             for cid, path in attachments.items():
                 attachment = message.Attachments.Add(str(Path(path).resolve()), 1, 0)
@@ -82,7 +42,7 @@ class OutlookWriter:
         finally:
             message = None
 
-def run_cases(cases, writer, history, banner, report, progress, cancelled, limit=None, delay=0.25):
+def run_cases(cases, writer, banner, report, progress, cancelled, limit=None, delay=0.25):
     created = 0
     with Path(report).open('w', encoding='utf-8') as log:
         log.write('Email draft results\n\n')
@@ -95,20 +55,17 @@ def run_cases(cases, writer, history, banner, report, progress, cancelled, limit
             if reason:
                 status = 'Needs review: ' + reason
             else:
-                status = history.reserve(writer.mailbox, case)
-                if status is None:
-                    body, attachments = build_html(case, banner)
-                    try:
-                        entry = writer.save(case, body, attachments)
-                        history.complete(writer.mailbox, case, entry)
-                    except Exception as exc:
-                        log.write(case['case_id'] + ': Save could not be confirmed. Check Outlook. Batch stopped.\n')
-                        log.write('Technical detail: ' + repr(exc) + '\n')
-                        log.flush()
-                        raise RuntimeError('Outlook save could not be confirmed. Processing stopped. Check Outlook and Results.txt for the technical detail. This case will not be retried automatically.') from exc
-                    created += 1
-                    status = 'Draft created'
-                    time.sleep(delay)
+                body, attachments = build_html(case, banner)
+                try:
+                    writer.save(case, body, attachments)
+                except Exception as exc:
+                    log.write(case['case_id'] + ': Save could not be confirmed. Check Outlook. Batch stopped.\n')
+                    log.write('Technical detail: ' + repr(exc) + '\n')
+                    log.flush()
+                    raise RuntimeError('Outlook save could not be confirmed. Processing stopped. Check Outlook and Results.txt for the technical detail.') from exc
+                created += 1
+                status = 'Draft created'
+                time.sleep(delay)
             log.write(case['case_id'] + ': ' + status + '\n')
             log.flush()
             progress(f'{i}/{len(cases)} cases checked. {created} drafts created.')
