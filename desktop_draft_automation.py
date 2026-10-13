@@ -240,8 +240,7 @@ def read_cases(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         for field in ["User's Name", "User's Email", 'Line Address 1', 'Line Address 2', 'City', 'State/Province', 'Country', 'Zipcode/Postal Code']:
             if len({first(r, field).casefold() for r in case_rows}) > 1:
                 missing.append('Conflicting ' + field)
-        if any(is_yes(first(r, 'Duplicate')) for r in case_rows):
-            missing.append('Duplicate flag: confirm case before drafting')
+        # The sheet's Duplicate flag is informational; it does not block drafts.
         if any(not first(r, 'Asset Serial Number') for r in case_rows):
             missing.append('Asset missing on a case row')
         if any('#NAME?' in first(r, 'Asset Serial Number') or '#REF!' in first(r, 'Asset Serial Number') for r in case_rows):
@@ -287,7 +286,7 @@ def main() -> None:
     parser.add_argument("--create-html-preview", action="store_true", help="Also write browser-viewable HTML previews")
     args = parser.parse_args()
     if args.create_outlook_drafts:
-        parser.error('Use Prepare Drafts.bat for Outlook drafts with mailbox selection and duplicate protection.')
+        parser.error('Use Prepare Drafts.bat for Outlook drafts with mailbox selection.')
 
     if args.banner is None:
         default_banner = Path(__file__).with_name("signature-banner.png")

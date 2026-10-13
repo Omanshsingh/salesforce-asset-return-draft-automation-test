@@ -8,7 +8,7 @@ Choose Excel and the specific Outlook mailbox in the window. Test two dummy draf
 
 If a save cannot be confirmed, the app stops so you can check Outlook before continuing.
 
-The first worksheet must use the supplied column headers. Rows group by Case ID; different Case IDs remain separate. Conflicting identity/address fields, missing required information and duplicate flags are held for review. Duplicate flags are not blindly discarded: they may mark repeated cases containing different assets. Identical asset descriptions are deduplicated.
+The first worksheet must use the supplied column headers. Rows group by Case ID; different Case IDs remain separate. Conflicting identity/address fields and missing required information are held for review. The sheet's Duplicate flag does not block drafting or produce a review error; flagged cases are drafted like normal cases. Identical asset descriptions are deduplicated.
 
 Every run is independent: the same Excel file can be prepared again whenever needed. Previously sent manual emails are not detected: select only eligible new cases in the daily export. Follow-ups are outside this initial-email workflow.
 
