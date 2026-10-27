@@ -1,10 +1,10 @@
 FIRST TIME
-1. Install Python 3.11 or newer if needed.
-2. Double-click Setup Once.bat and wait for Setup complete.
+1. Double-click Setup Once.bat. It will find Python 3.11+ even if it is not on PATH. If no compatible Python is found, it tries to install Python 3.12 with winget.
+2. Wait for "Setup complete." If your company blocks winget or pip, follow the official Python link and any setup message, then run Setup Once.bat again.
 3. Open Classic Outlook with the correct account.
 
 FIRST TEST
-1. Double-click Prepare Drafts.bat.
+1. Double-click Prepare Drafts.bat. It will repair the app environment automatically if it is missing or incomplete.
 2. Choose Omansh_Test_Dummy_100_Cases.xlsx.
 3. Load Outlook accounts and select the test mailbox.
 4. Click Test 2 dummy drafts.
